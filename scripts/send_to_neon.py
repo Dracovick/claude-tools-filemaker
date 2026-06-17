@@ -12,8 +12,10 @@ from pathlib import Path
 
 # ── Configuration ────────────────────────────────────────────────
 TAB_FILE     = Path("/volume1/Web/Claude-Tools/data/export.tab")
-VERCEL_URL   = "https://VOTRE-PROJET.vercel.app/api/import"   # à remplacer
-IMPORT_TOKEN = "VOTRE_IMPORT_TOKEN"                           # même valeur que dans Vercel
+VERCEL_URL   = "https://claude-tools-filemaker.vercel.app/api/import"
+# Token lu depuis un fichier de config local (non versionné)
+_TOKEN_FILE  = Path(__file__).parent / "import_token.txt"
+IMPORT_TOKEN = _TOKEN_FILE.read_text(encoding="utf-8").strip() if _TOKEN_FILE.exists() else ""
 # ─────────────────────────────────────────────────────────────────
 
 def read_tab(path):
