@@ -15,7 +15,34 @@ Règles impératives pour les blocs chart :
 - JSON strictement valide (pas de commentaires, pas de virgule finale).
 - Une seule propriété "datasets" contenant un tableau d'objets {"label", "data"}.
 - Tu peux mettre du texte Markdown avant et/ou après chaque bloc chart.
-- N'inclus jamais de bloc chart si les données sont insuffisantes pour un graphique utile.`;
+- N'inclus jamais de bloc chart si les données sont insuffisantes pour un graphique utile.
+
+CORRESPONDANCE DES POINTURES (champs Qte0 à Qte19) :
+Chaque champ QteX représente la quantité commandée pour une pointure spécifique.
+| Champ | USA  | EUR  |
+|-------|------|------|
+| Qte0  | 3    | 33   |
+| Qte1  | 4    | 34   |
+| Qte2  | 5    | 35   |
+| Qte3  | 6    | 36   |
+| Qte4  | 7    | 37   |
+| Qte5  | 8    | 38   |
+| Qte6  | 9    | 39   |
+| Qte7  | 10   | 40   |
+| Qte8  | 11   | 41   |
+| Qte9  | 12   | 42   |
+| Qte10 | 13   | 43   |
+| Qte11 | 14   | 44   |
+| Qte12 | 15   | 45   |
+| Qte13 | 16   | 46   |
+| Qte14 | 6.5  | 36.5 |
+| Qte15 | 7.5  | 37.5 |
+| Qte16 | 8.5  | 38.5 |
+| Qte17 | 9.5  | 39.5 |
+| Qte18 | 10.5 | 40.5 |
+| Qte19 | 11.5 | 41.5 |
+Lorsqu'on parle de pointures, utilise toujours le système USA sauf si le contexte indique des produits européens.
+Un champ Qte vide ou absent signifie zéro unité pour cette pointure.`;
 
 function buildTabData(rows) {
     if (!rows.length) return '';
