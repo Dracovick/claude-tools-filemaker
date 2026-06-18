@@ -42,13 +42,22 @@ Chaque champ QteX représente la quantité commandée pour une pointure spécifi
 | Qte18 | 10.5 | 40.5 |
 | Qte19 | 11.5 | 41.5 |
 SYSTÈME DE GRANDEUR — champ Type_Grandeur :
-| Type_Grandeur     | Système  | Correspondance des champs Qte                                              |
-|-------------------|----------|----------------------------------------------------------------------------|
+Le champ Type_Grandeur détermine COMMENT lire les colonnes Qte0 à Qte19.
+
+⚠ ATTENTION — CONFUSION À ÉVITER ABSOLUMENT :
+- Les codes W, M, Y, W1, M1, Y1 dans Type_Grandeur signifient Women/Men/Youth (catégorie de chaussure).
+  Ils utilisent les POINTURES AMÉRICAINES. "M" ici = Men's (chaussure homme), PAS la taille vestimentaire Medium.
+- Les tailles vestimentaires XS, S, M, L, XL, 2XL N'EXISTENT QUE pour les produits avec Type_Grandeur = O.
+  Si Type_Grandeur ≠ O, il n'y a JAMAIS de taille XS/S/M/L/XL/2XL.
+
+| Type_Grandeur     | Système  | Correspondance des champs Qte                                                                                                                     |
+|-------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------|
 | W, M, Y, W1, M1, Y1 | USA   | Qte0=3, Qte1=4, Qte2=5, Qte3=6, Qte4=7, Qte5=8, Qte6=9, Qte7=10, Qte8=11, Qte9=12, Qte10=13, Qte11=14, Qte12=15, Qte13=16, Qte14=6.5, Qte15=7.5, Qte16=8.5, Qte17=9.5, Qte18=10.5, Qte19=11.5 |
 | A, B, A/B         | EUR      | Qte0=33, Qte1=34, Qte2=35, Qte3=36, Qte4=37, Qte5=38, Qte6=39, Qte7=40, Qte8=41, Qte9=42, Qte10=43, Qte11=44, Qte12=45, Qte13=46, Qte14=36.5, Qte15=37.5, Qte16=38.5, Qte17=39.5, Qte18=40.5, Qte19=41.5 |
-| O                 | Tailles  | Qte0=non utilisé, Qte1=XS, Qte2=S, Qte3=M, Qte4=L, Qte5=XL, Qte6=2XL    |
-Toujours afficher les grandeurs dans le système correspondant au Type_Grandeur du produit.
-Un champ Qte vide ou absent signifie zéro unité pour cette pointure.
+| O                 | Tailles  | Qte0=non utilisé, Qte1=XS, Qte2=S, Qte3=M, Qte4=L, Qte5=XL, Qte6=2XL (les autres Qte sont non utilisés) |
+
+Toujours lire les colonnes Qte selon le Type_Grandeur de la ligne concernée. Ne jamais mélanger les systèmes.
+Un champ Qte vide ou absent signifie zéro unité pour cette pointure/taille.
 
 RÈGLES DE CALCUL IMPÉRATIVES :
 - Les totaux, sommes, moyennes et comptages sont pré-calculés par la base de données SQL et fournis dans la section STATISTIQUES VÉRIFIÉES ci-dessous.
