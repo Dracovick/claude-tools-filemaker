@@ -48,7 +48,8 @@ RÈGLES DE CALCUL IMPÉRATIVES :
 - Les totaux, sommes, moyennes et comptages sont pré-calculés par la base de données SQL et fournis dans la section STATISTIQUES VÉRIFIÉES ci-dessous.
 - Tu DOIS utiliser ces chiffres pré-calculés pour répondre aux questions de totaux. Ne recalcule JAMAIS toi-même ces valeurs à partir des données brutes.
 - Les montants utilisent la virgule comme séparateur décimal (ex: 82,5 = 82.5). Ne confonds pas virgule décimale et séparateur de milliers.
-- Si une question demande un calcul qui n'est pas dans les statistiques pré-calculées, indique clairement que tu travailles à partir des données brutes et que le résultat est une estimation.`;
+- INTERDIT : N'utilise JAMAIS le symbole ~ (tilde) ni les mots "environ", "approximativement", "à peu près" pour des chiffres de quantité ou de montant. Les statistiques pré-calculées sont exactes — utilise-les telles quelles.
+- Si une question demande un calcul qui n'est pas dans les statistiques pré-calculées, dis-le explicitement et refuse de donner un chiffre approximatif.`;
 
 async function buildStats(sql) {
     const [totals] = await sql`
@@ -118,6 +119,35 @@ async function buildStats(sql) {
         ORDER BY montant DESC
     `;
 
+    // Pointures ventilées par devise — évite que Claude calcule lui-même
+    const byDeviseQte = await sql`
+        SELECT
+            data->>'Devise'                                                                              AS devise,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte0', ',','.'),''),'0')::numeric)::int AS q0,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte1', ',','.'),''),'0')::numeric)::int AS q1,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte2', ',','.'),''),'0')::numeric)::int AS q2,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte3', ',','.'),''),'0')::numeric)::int AS q3,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte4', ',','.'),''),'0')::numeric)::int AS q4,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte5', ',','.'),''),'0')::numeric)::int AS q5,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte6', ',','.'),''),'0')::numeric)::int AS q6,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte7', ',','.'),''),'0')::numeric)::int AS q7,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte8', ',','.'),''),'0')::numeric)::int AS q8,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte9', ',','.'),''),'0')::numeric)::int AS q9,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte10',',','.'),''),'0')::numeric)::int AS q10,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte11',',','.'),''),'0')::numeric)::int AS q11,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte12',',','.'),''),'0')::numeric)::int AS q12,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte13',',','.'),''),'0')::numeric)::int AS q13,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte14',',','.'),''),'0')::numeric)::int AS q14,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte15',',','.'),''),'0')::numeric)::int AS q15,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte16',',','.'),''),'0')::numeric)::int AS q16,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte17',',','.'),''),'0')::numeric)::int AS q17,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte18',',','.'),''),'0')::numeric)::int AS q18,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte19',',','.'),''),'0')::numeric)::int AS q19
+        FROM latest_transactions
+        GROUP BY data->>'Devise'
+        ORDER BY devise
+    `;
+
     const SIZE_LABEL = [
         'USA 3/EUR 33','USA 4/EUR 34','USA 5/EUR 35','USA 6/EUR 36',
         'USA 7/EUR 37','USA 8/EUR 38','USA 9/EUR 39','USA 10/EUR 40',
@@ -129,8 +159,17 @@ async function buildStats(sql) {
         .map((lbl, i) => `${lbl}: ${q[`q${i}`] ?? 0} unités`)
         .join('\n');
 
+    const deviseQteSummary = byDeviseQte.map(row => {
+        const lines = SIZE_LABEL
+            .map((lbl, i) => `  ${lbl}: ${row[`q${i}`] ?? 0}`)
+            .filter((_, i) => (row[`q${i}`] ?? 0) > 0)
+            .join('\n');
+        return `Devise ${row.devise} :\n${lines || '  (aucune unité)'}`;
+    }).join('\n\n');
+
     return `
 STATISTIQUES VÉRIFIÉES (calculées par PostgreSQL — source de vérité absolue) :
+Ces chiffres sont EXACTS. Utilise-les sans approximation ni recalcul.
 
 Résumé général :
 - Lignes de commande : ${totals.nb_lignes}
@@ -139,8 +178,11 @@ Résumé général :
 - Unités totales : ${totals.unites_total}
 - Montant total : ${Number(totals.montant_total).toFixed(2)} $
 
-Unités par pointure :
+Unités par pointure (toutes devises) :
 ${qteSummary}
+
+Unités par pointure PAR DEVISE (chiffres exacts — ne pas recalculer) :
+${deviseQteSummary}
 
 Ventes par client (montant décroissant) :
 ${byClient.map(r => `${r.client}: ${r.unites} unités / ${Number(r.montant).toFixed(2)} $`).join('\n')}
