@@ -208,9 +208,9 @@ async function buildStats(sql) {
     const EUR_LABEL_GLOBAL = ['33','34','35','36','37','38','39','40','41','42','43','44','45','46','36.5','37.5','38.5','39.5','40.5','41.5'];
 
     const deviseQteSummary = byDeviseQte.map(row => {
-        const lines = SIZE_LABEL
-            .map((lbl, i) => `  ${lbl}: ${row[`q${i}`] ?? 0}`)
-            .filter((_, i) => (row[`q${i}`] ?? 0) > 0)
+        const lines = Array.from({length: 20}, (_, i) => i)
+            .filter(i => (row[`q${i}`] ?? 0) > 0)
+            .map(i => `  Qte${i}: ${row[`q${i}`]}`)
             .join('\n');
         return `Devise ${row.devise} :\n${lines || '  (aucune unité)'}`;
     }).join('\n\n');
