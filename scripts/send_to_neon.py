@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Script d'import nightly - à lancer sur le NAS ASUSTOR via le planificateur ADM
-Lit export.tab et envoie les données à l'endpoint Vercel /api/import
+Lit Export.csv (sans en-têtes) et envoie les données à l'endpoint Vercel /api/import
 """
 import csv
 import json
@@ -11,17 +11,35 @@ import urllib.error
 from pathlib import Path
 
 # ── Configuration ────────────────────────────────────────────────
-TAB_FILE     = Path("/volume1/Web/Claude-Tools/data/export.tab")
+CSV_FILE     = Path("/volume1/Web/Claude-Tools/data/Export.csv")
 VERCEL_URL   = "https://claude-tools-filemaker.vercel.app/api/import"
-# Token lu depuis un fichier de config local (non versionné)
 _TOKEN_FILE  = Path(__file__).parent / "import_token.txt"
 IMPORT_TOKEN = _TOKEN_FILE.read_text(encoding="utf-8").strip() if _TOKEN_FILE.exists() else ""
 # ─────────────────────────────────────────────────────────────────
 
-def read_tab(path):
+COLS = [
+    "Qte0","Qte1","Qte2","Qte3","Qte4","Qte5","Qte6","Qte7","Qte8","Qte9",
+    "Qte10","Qte11","Qte12","Qte13","Qte14","Qte15","Qte16","Qte17","Qte18","Qte19",
+    "Qte_Total","Marque","Modele","Code_Produit","Annee","Saison","Type",
+    "Date_Commande","Devise","Prix_Unitaire","Prix_Detail","Client",
+    "Date_Facture","Montant","No_Commande","Code_Client","Nom_Client",
+]
+
+def read_csv(path):
+    rows = []
     with open(path, encoding="utf-8-sig", newline="") as f:
-        reader = csv.DictReader(f, delimiter="\t")
-        return [dict(row) for row in reader]
+        for raw in csv.reader(f):
+            if not any(raw):
+                continue
+            obj = {}
+            for i, col in enumerate(COLS):
+                val = raw[i].strip() if i < len(raw) else ""
+                if col.startswith("Qte"):
+                    obj[col] = val if val != "" else "0"
+                elif val != "":
+                    obj[col] = val
+            rows.append(obj)
+    return rows
 
 def send(rows):
     payload = json.dumps({"rows": rows}).encode("utf-8")
@@ -29,8 +47,8 @@ def send(rows):
         VERCEL_URL,
         data=payload,
         headers={
-            "Content-Type":    "application/json",
-            "x-import-token":  IMPORT_TOKEN,
+            "Content-Type":   "application/json",
+            "x-import-token": IMPORT_TOKEN,
         },
         method="POST",
     )
@@ -38,16 +56,16 @@ def send(rows):
         return json.loads(resp.read())
 
 def main():
-    if not TAB_FILE.exists():
-        print(f"[ERREUR] Fichier introuvable : {TAB_FILE}", file=sys.stderr)
+    if not CSV_FILE.exists():
+        print(f"[ERREUR] Fichier introuvable : {CSV_FILE}", file=sys.stderr)
         sys.exit(1)
 
-    rows = read_tab(TAB_FILE)
+    rows = read_csv(CSV_FILE)
     if not rows:
         print("[ERREUR] Fichier vide.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"[INFO] {len(rows)} lignes lues depuis {TAB_FILE.name}")
+    print(f"[INFO] {len(rows)} lignes lues depuis {CSV_FILE.name}")
 
     try:
         result = send(rows)
