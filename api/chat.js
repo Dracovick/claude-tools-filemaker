@@ -51,58 +51,68 @@ RÈGLES DE CALCUL IMPÉRATIVES :
 - Si une question demande un calcul qui n'est pas dans les statistiques pré-calculées, indique clairement que tu travailles à partir des données brutes et que le résultat est une estimation.`;
 
 async function buildStats(sql) {
-    const qteFields = Array.from({length: 20}, (_, i) => `Qte${i}`);
-
-    // Totaux généraux
     const [totals] = await sql`
         SELECT
-            COUNT(*)::int                                                        AS nb_lignes,
-            SUM(REPLACE(data->>'Qte_Total',  ',', '.')::numeric)::numeric(12,2) AS unites_total,
-            SUM(REPLACE(data->>'Montant',    ',', '.')::numeric)::numeric(12,2) AS montant_total,
-            COUNT(DISTINCT data->>'No_Commande')::int                           AS nb_commandes,
-            COUNT(DISTINCT data->>'Client')::int                                AS nb_clients
+            COUNT(*)::int                                                                                      AS nb_lignes,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total',',','.'),''),'0')::numeric)::int                   AS unites_total,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Montant',   ',','.'),''),'0')::numeric)::numeric(12,2)        AS montant_total,
+            COUNT(DISTINCT data->>'No_Commande')::int                                                         AS nb_commandes,
+            COUNT(DISTINCT data->>'Client')::int                                                              AS nb_clients
         FROM latest_transactions
     `;
 
-    // Unités par pointure (Qte0–Qte19)
-    const qteSums = await sql`
+    const [q] = await sql`
         SELECT
-            ${ sql.unsafe(qteFields.map(f =>
-                `SUM(REPLACE(data->>'${f}',',','.')::numeric)::int AS "${f}"`
-            ).join(',')) }
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte0', ',','.'),''),'0')::numeric)::int AS q0,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte1', ',','.'),''),'0')::numeric)::int AS q1,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte2', ',','.'),''),'0')::numeric)::int AS q2,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte3', ',','.'),''),'0')::numeric)::int AS q3,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte4', ',','.'),''),'0')::numeric)::int AS q4,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte5', ',','.'),''),'0')::numeric)::int AS q5,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte6', ',','.'),''),'0')::numeric)::int AS q6,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte7', ',','.'),''),'0')::numeric)::int AS q7,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte8', ',','.'),''),'0')::numeric)::int AS q8,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte9', ',','.'),''),'0')::numeric)::int AS q9,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte10',',','.'),''),'0')::numeric)::int AS q10,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte11',',','.'),''),'0')::numeric)::int AS q11,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte12',',','.'),''),'0')::numeric)::int AS q12,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte13',',','.'),''),'0')::numeric)::int AS q13,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte14',',','.'),''),'0')::numeric)::int AS q14,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte15',',','.'),''),'0')::numeric)::int AS q15,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte16',',','.'),''),'0')::numeric)::int AS q16,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte17',',','.'),''),'0')::numeric)::int AS q17,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte18',',','.'),''),'0')::numeric)::int AS q18,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte19',',','.'),''),'0')::numeric)::int AS q19
         FROM latest_transactions
     `;
 
-    // Ventes par client
     const byClient = await sql`
         SELECT
-            data->>'Client'                                                      AS client,
-            SUM(REPLACE(data->>'Montant',',','.')::numeric)::numeric(12,2)      AS montant,
-            SUM(REPLACE(data->>'Qte_Total',',','.')::numeric)::int              AS unites
+            data->>'Client'                                                                             AS client,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Montant',   ',','.'),''),'0')::numeric)::numeric(12,2) AS montant,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total', ',','.'),''),'0')::numeric)::int           AS unites
         FROM latest_transactions
         GROUP BY data->>'Client'
         ORDER BY montant DESC
         LIMIT 20
     `;
 
-    // Ventes par modèle
     const byModele = await sql`
         SELECT
-            data->>'Modele'                                                      AS modele,
-            SUM(REPLACE(data->>'Montant',',','.')::numeric)::numeric(12,2)      AS montant,
-            SUM(REPLACE(data->>'Qte_Total',',','.')::numeric)::int              AS unites
+            data->>'Modele'                                                                             AS modele,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Montant',   ',','.'),''),'0')::numeric)::numeric(12,2) AS montant,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total', ',','.'),''),'0')::numeric)::int           AS unites
         FROM latest_transactions
         GROUP BY data->>'Modele'
         ORDER BY unites DESC
         LIMIT 20
     `;
 
-    // Ventes par devise
     const byDevise = await sql`
         SELECT
-            data->>'Devise'                                                      AS devise,
-            SUM(REPLACE(data->>'Montant',',','.')::numeric)::numeric(12,2)      AS montant,
-            SUM(REPLACE(data->>'Qte_Total',',','.')::numeric)::int              AS unites
+            data->>'Devise'                                                                             AS devise,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Montant',   ',','.'),''),'0')::numeric)::numeric(12,2) AS montant,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total', ',','.'),''),'0')::numeric)::int           AS unites
         FROM latest_transactions
         GROUP BY data->>'Devise'
         ORDER BY montant DESC
@@ -115,44 +125,31 @@ async function buildStats(sql) {
         'USA 15/EUR 45','USA 16/EUR 46','USA 6.5/EUR 36.5','USA 7.5/EUR 37.5',
         'USA 8.5/EUR 38.5','USA 9.5/EUR 39.5','USA 10.5/EUR 40.5','USA 11.5/EUR 41.5',
     ];
-    const qteRow = qteSums[0] || {};
-    const qteSummary = qteFields
-        .map((f, i) => `${SIZE_LABEL[i]}: ${qteRow[f] ?? 0} unités`)
-        .join('\n');
-
-    const clientSummary = byClient
-        .map(r => `${r.client}: ${r.unites} unités / ${r.montant} $`)
-        .join('\n');
-
-    const modeleSummary = byModele
-        .map(r => `${r.modele}: ${r.unites} unités / ${r.montant} $`)
-        .join('\n');
-
-    const deviseSummary = byDevise
-        .map(r => `${r.devise}: ${r.montant} $ (${r.unites} unités)`)
+    const qteSummary = SIZE_LABEL
+        .map((lbl, i) => `${lbl}: ${q[`q${i}`] ?? 0} unités`)
         .join('\n');
 
     return `
-STATISTIQUES VÉRIFIÉES (calculées par la base de données — source de vérité absolue) :
+STATISTIQUES VÉRIFIÉES (calculées par PostgreSQL — source de vérité absolue) :
 
 Résumé général :
 - Lignes de commande : ${totals.nb_lignes}
 - Commandes distinctes : ${totals.nb_commandes}
 - Clients distincts : ${totals.nb_clients}
 - Unités totales : ${totals.unites_total}
-- Montant total : ${totals.montant_total} $
+- Montant total : ${Number(totals.montant_total).toFixed(2)} $
 
 Unités par pointure :
 ${qteSummary}
 
 Ventes par client (montant décroissant) :
-${clientSummary}
+${byClient.map(r => `${r.client}: ${r.unites} unités / ${Number(r.montant).toFixed(2)} $`).join('\n')}
 
 Ventes par modèle (unités décroissantes) :
-${modeleSummary}
+${byModele.map(r => `${r.modele}: ${r.unites} unités / ${Number(r.montant).toFixed(2)} $`).join('\n')}
 
 Ventes par devise :
-${deviseSummary}
+${byDevise.map(r => `${r.devise}: ${Number(r.montant).toFixed(2)} $ (${r.unites} unités)`).join('\n')}
 `.trim();
 }
 
