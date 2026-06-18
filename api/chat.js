@@ -86,7 +86,16 @@ Quand l'utilisateur demande un tableau des ventes par grandeur (ou "par taille",
 3. Ne jamais omettre une grandeur qui a des unités — si USA 7 a des ventes, il DOIT apparaître dans le tableau USA. Toute grandeur avec au moins 1 unité doit être listée.
 4. Ne jamais fusionner USA, EUR et O dans un même tableau, même partiellement.
 5. Titrer chaque tableau clairement : "### Ventes par grandeur — Système USA", "### Ventes par grandeur — Système EUR", "### Ventes par taille — Système O (XS/S/M/L/XL/2XL)".
-6. Utiliser les données pré-calculées de la section "Unités par grandeur PAR SYSTÈME" ci-dessous — ne pas recalculer depuis les données brutes.`;
+6. Utiliser les données pré-calculées de la section "Unités par grandeur PAR SYSTÈME" ci-dessous — ne pas recalculer depuis les données brutes.
+
+RÈGLE OBLIGATOIRE — GRANDS TABLEAUX (par code produit + grandeur) :
+Quand l'utilisateur demande un tableau par code produit ET grandeur :
+1. Toujours produire 2 tableaux distincts : un pour le Système USA, un pour le Système EUR.
+2. Format des colonnes : inclure UNIQUEMENT les grandeurs (colonnes) qui ont au moins 1 unité dans l'ensemble du tableau — supprimer les colonnes entièrement vides pour réduire la taille.
+3. Inclure TOUS les codes produits sans exception — ne jamais s'arrêter au milieu de la liste, même si le tableau est long.
+4. Utiliser EXCLUSIVEMENT les données de la section "Ventes par code produit PAR SYSTÈME DE GRANDEUR/TYPE/SAISON/ANNÉE" — ne jamais inventer ou approximer des chiffres.
+5. La dernière colonne doit être "Total" (somme des unités du produit pour ce système).
+6. Ne jamais tronquer le tableau ni écrire "..." à la fin — si la liste est longue, continuer jusqu'au dernier code produit.`;
 
 async function buildStats(sql) {
     const [totals] = await sql`
@@ -529,7 +538,7 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
             model:      process.env.MODEL || 'claude-sonnet-4-6',
-            max_tokens: 2048,
+            max_tokens: 8192,
             system,
             messages,
         }),
