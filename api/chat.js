@@ -46,7 +46,10 @@ Un champ Qte vide ou absent signifie zéro unité pour cette pointure.`;
 
 function buildTabData(rows) {
     if (!rows.length) return '';
-    const columns = Object.keys(rows[0].data);
+    // Union de toutes les colonnes présentes dans l'ensemble des lignes
+    const colSet = new Set();
+    rows.forEach(r => Object.keys(r.data).forEach(k => colSet.add(k)));
+    const columns = Array.from(colSet);
     const header  = columns.join('\t');
     const body    = rows.map(r => columns.map(c => r.data[c] ?? '').join('\t')).join('\n');
     return header + '\n' + body;
