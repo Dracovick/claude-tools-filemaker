@@ -528,6 +528,14 @@ export default async function handler(req, res) {
     const history  = Array.isArray(req.body?.history) ? req.body.history : [];
     if (!question) return res.status(400).json({ error: 'Question vide' });
 
+    // ── MODE MOCK (MOCK=true dans .env.local) ── aucun token consommé
+    if (process.env.MOCK === 'true') {
+        return res.status(200).json({
+            answer: `**[MODE MOCK — 0 token consommé]**\n\nQuestion reçue : *${question}*\n\nRéponse simulée — l'interface fonctionne correctement.\n\n| Client | Modèle | Unités |\n|--------|--------|--------|\n| Sports Experts-536 | Ice VICTOR m | 13 |\n| Sports Experts-538 | Ice VICTOR m | 4 |\n| Pieds Géants | Ice VICTOR m | 21 |\n\n_Mettez \`MOCK=false\` dans \`.env.local\` pour appeler l'API réelle._`,
+            rows: 2000,
+        });
+    }
+
     // Lecture des données depuis Neon
     const sql      = neon(process.env.DATABASE_URL);
     const maxRows  = parseInt(process.env.MAX_ROWS || '2000', 10);
