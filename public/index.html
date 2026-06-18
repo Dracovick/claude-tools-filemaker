@@ -222,7 +222,7 @@
 
 <div id="chat">
   <div class="bubble assistant">
-    <div class="md-content">Bonjour&nbsp;! Posez-moi vos questions sur les transactions et ventes. Je consulte les données exportées de FileMaker.</div>
+    <div class="md-content" id="welcome-text">Bonjour&nbsp;! Posez-moi vos questions sur les transactions et ventes. Je consulte les données exportées de FileMaker.</div>
   </div>
 </div>
 
@@ -236,10 +236,37 @@
 <script>
   marked.setOptions({ breaks: true, gfm: true });
 
-  const chat    = document.getElementById('chat');
-  const input   = document.getElementById('question');
-  const btn     = document.getElementById('send-btn');
-  const rowInfo = document.getElementById('row-info');
+  const chat        = document.getElementById('chat');
+  const input       = document.getElementById('question');
+  const btn         = document.getElementById('send-btn');
+  const rowInfo     = document.getElementById('row-info');
+  const welcomeText = document.getElementById('welcome-text');
+
+  const MOIS_FR = ['janvier','février','mars','avril','mai','juin',
+                   'juillet','août','septembre','octobre','novembre','décembre'];
+
+  function formatDateFR(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-').map(Number);
+    const jour = d === 1 ? '1er' : String(d);
+    return `${jour} ${MOIS_FR[m - 1]} ${y}`;
+  }
+
+  async function loadStatus() {
+    try {
+      const res  = await fetch('/api/status');
+      const data = await res.json();
+      if (data.min_date && data.max_date) {
+        welcomeText.textContent =
+          `Bonjour ! Posez-moi vos questions sur les transactions et ventes. ` +
+          `Je consulte les données exportées de FileMaker des commandes du ` +
+          `${formatDateFR(data.min_date)} au ${formatDateFR(data.max_date)}.`;
+        if (data.total_rows) rowInfo.textContent = data.total_rows + ' lignes chargées';
+      }
+    } catch (e) { /* garde le message par défaut */ }
+  }
+
+  loadStatus();
 
   // Palette couleurs graphiques
   const PALETTE = [
