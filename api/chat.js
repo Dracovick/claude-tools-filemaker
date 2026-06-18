@@ -93,7 +93,7 @@ async function buildStats(sql) {
         SELECT
             COUNT(*)::int                                                                                      AS nb_lignes,
             SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total',',','.'),''),'0')::numeric)::int                   AS unites_total,
-            SUM(COALESCE(NULLIF(REPLACE(data->>'Montant',   ',','.'),''),'0')::numeric)::numeric(12,2)        AS montant_total,
+            SUM(CASE WHEN REPLACE(data->>'Montant',',','.') ~ '^-?[0-9]*\.?[0-9]+$' THEN REPLACE(data->>'Montant',',','.')::numeric ELSE 0 END)::numeric(12,2)        AS montant_total,
             COUNT(DISTINCT data->>'No_Commande')::int                                                         AS nb_commandes,
             COUNT(DISTINCT data->>'Client')::int                                                              AS nb_clients
         FROM latest_transactions
@@ -127,7 +127,7 @@ async function buildStats(sql) {
     const byClient = await sql`
         SELECT
             data->>'Client'                                                                             AS client,
-            SUM(COALESCE(NULLIF(REPLACE(data->>'Montant',   ',','.'),''),'0')::numeric)::numeric(12,2) AS montant,
+            SUM(CASE WHEN REPLACE(data->>'Montant',',','.') ~ '^-?[0-9]*\.?[0-9]+$' THEN REPLACE(data->>'Montant',',','.')::numeric ELSE 0 END)::numeric(12,2) AS montant,
             SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total', ',','.'),''),'0')::numeric)::int           AS unites
         FROM latest_transactions
         GROUP BY data->>'Client'
@@ -138,7 +138,7 @@ async function buildStats(sql) {
     const byModele = await sql`
         SELECT
             data->>'Modele'                                                                             AS modele,
-            SUM(COALESCE(NULLIF(REPLACE(data->>'Montant',   ',','.'),''),'0')::numeric)::numeric(12,2) AS montant,
+            SUM(CASE WHEN REPLACE(data->>'Montant',',','.') ~ '^-?[0-9]*\.?[0-9]+$' THEN REPLACE(data->>'Montant',',','.')::numeric ELSE 0 END)::numeric(12,2) AS montant,
             SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total', ',','.'),''),'0')::numeric)::int           AS unites
         FROM latest_transactions
         GROUP BY data->>'Modele'
@@ -149,7 +149,7 @@ async function buildStats(sql) {
     const byDevise = await sql`
         SELECT
             data->>'Devise'                                                                             AS devise,
-            SUM(COALESCE(NULLIF(REPLACE(data->>'Montant',   ',','.'),''),'0')::numeric)::numeric(12,2) AS montant,
+            SUM(CASE WHEN REPLACE(data->>'Montant',',','.') ~ '^-?[0-9]*\.?[0-9]+$' THEN REPLACE(data->>'Montant',',','.')::numeric ELSE 0 END)::numeric(12,2) AS montant,
             SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total', ',','.'),''),'0')::numeric)::int           AS unites
         FROM latest_transactions
         GROUP BY data->>'Devise'
@@ -159,13 +159,158 @@ async function buildStats(sql) {
     const byVendeur = await sql`
         SELECT
             INITCAP(LOWER(data->>'Vendeur'))                                                            AS vendeur,
-            SUM(COALESCE(NULLIF(REPLACE(data->>'Montant',   ',','.'),''),'0')::numeric)::numeric(12,2) AS montant,
+            SUM(CASE WHEN REPLACE(data->>'Montant',',','.') ~ '^-?[0-9]*\.?[0-9]+$' THEN REPLACE(data->>'Montant',',','.')::numeric ELSE 0 END)::numeric(12,2) AS montant,
             SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total', ',','.'),''),'0')::numeric)::int           AS unites,
             COUNT(DISTINCT data->>'No_Commande')::int                                                   AS nb_commandes,
             COUNT(DISTINCT data->>'Client')::int                                                        AS nb_clients
         FROM latest_transactions
         GROUP BY LOWER(data->>'Vendeur')
         ORDER BY montant DESC
+    `;
+
+    // Ventes par modèle + Type + Saison + Année
+    const byModeleTypeSaisonAnnee = await sql`
+        SELECT
+            data->>'Modele'  AS modele,
+            data->>'Type'    AS type,
+            data->>'Saison'  AS saison,
+            data->>'Annee'   AS annee,
+            SUM(CASE WHEN REPLACE(data->>'Montant',',','.') ~ '^-?[0-9]*\.?[0-9]+$' THEN REPLACE(data->>'Montant',',','.')::numeric ELSE 0 END)::numeric(12,2) AS montant,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total',',','.'),''),'0')::numeric)::int              AS unites
+        FROM latest_transactions
+        GROUP BY data->>'Modele', data->>'Type', data->>'Saison', data->>'Annee'
+        ORDER BY annee DESC, saison, type, unites DESC
+    `;
+
+    // Ventes par modèle + système grandeur + Type + Saison + Année
+    const byModeleSystemeTypeSaisonAnnee = await sql`
+        SELECT
+            data->>'Modele'  AS modele,
+            CASE
+                WHEN data->>'Type_Grandeur' IN ('W','M','Y','W1','M1','Y1') THEN 'USA'
+                WHEN data->>'Type_Grandeur' IN ('A','B','A/B')              THEN 'EUR'
+                WHEN data->>'Type_Grandeur' = 'O'                           THEN 'O'
+                ELSE COALESCE(data->>'Type_Grandeur','?')
+            END              AS systeme,
+            data->>'Type'    AS type,
+            data->>'Saison'  AS saison,
+            data->>'Annee'   AS annee,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte0', ',','.'),''),'0')::numeric)::int AS q0,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte1', ',','.'),''),'0')::numeric)::int AS q1,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte2', ',','.'),''),'0')::numeric)::int AS q2,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte3', ',','.'),''),'0')::numeric)::int AS q3,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte4', ',','.'),''),'0')::numeric)::int AS q4,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte5', ',','.'),''),'0')::numeric)::int AS q5,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte6', ',','.'),''),'0')::numeric)::int AS q6,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte7', ',','.'),''),'0')::numeric)::int AS q7,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte8', ',','.'),''),'0')::numeric)::int AS q8,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte9', ',','.'),''),'0')::numeric)::int AS q9,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte10',',','.'),''),'0')::numeric)::int AS q10,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte11',',','.'),''),'0')::numeric)::int AS q11,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte12',',','.'),''),'0')::numeric)::int AS q12,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte13',',','.'),''),'0')::numeric)::int AS q13,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte14',',','.'),''),'0')::numeric)::int AS q14,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte15',',','.'),''),'0')::numeric)::int AS q15,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte16',',','.'),''),'0')::numeric)::int AS q16,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte17',',','.'),''),'0')::numeric)::int AS q17,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte18',',','.'),''),'0')::numeric)::int AS q18,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte19',',','.'),''),'0')::numeric)::int AS q19
+        FROM latest_transactions
+        GROUP BY data->>'Modele', systeme, data->>'Type', data->>'Saison', data->>'Annee'
+        ORDER BY annee DESC, saison, type, modele
+    `;
+
+    // Ventes par code produit + système grandeur + Type + Saison + Année
+    const byCodeProduitSystemeTypeSaisonAnnee = await sql`
+        SELECT
+            data->>'Code_Produit' AS code_produit,
+            data->>'Modele'       AS modele,
+            CASE
+                WHEN data->>'Type_Grandeur' IN ('W','M','Y','W1','M1','Y1') THEN 'USA'
+                WHEN data->>'Type_Grandeur' IN ('A','B','A/B')              THEN 'EUR'
+                WHEN data->>'Type_Grandeur' = 'O'                           THEN 'O'
+                ELSE COALESCE(data->>'Type_Grandeur','?')
+            END                   AS systeme,
+            data->>'Type'         AS type,
+            data->>'Saison'       AS saison,
+            data->>'Annee'        AS annee,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte0', ',','.'),''),'0')::numeric)::int AS q0,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte1', ',','.'),''),'0')::numeric)::int AS q1,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte2', ',','.'),''),'0')::numeric)::int AS q2,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte3', ',','.'),''),'0')::numeric)::int AS q3,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte4', ',','.'),''),'0')::numeric)::int AS q4,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte5', ',','.'),''),'0')::numeric)::int AS q5,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte6', ',','.'),''),'0')::numeric)::int AS q6,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte7', ',','.'),''),'0')::numeric)::int AS q7,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte8', ',','.'),''),'0')::numeric)::int AS q8,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte9', ',','.'),''),'0')::numeric)::int AS q9,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte10',',','.'),''),'0')::numeric)::int AS q10,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte11',',','.'),''),'0')::numeric)::int AS q11,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte12',',','.'),''),'0')::numeric)::int AS q12,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte13',',','.'),''),'0')::numeric)::int AS q13,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte14',',','.'),''),'0')::numeric)::int AS q14,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte15',',','.'),''),'0')::numeric)::int AS q15,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte16',',','.'),''),'0')::numeric)::int AS q16,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte17',',','.'),''),'0')::numeric)::int AS q17,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte18',',','.'),''),'0')::numeric)::int AS q18,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte19',',','.'),''),'0')::numeric)::int AS q19
+        FROM latest_transactions
+        GROUP BY data->>'Code_Produit', data->>'Modele', systeme, data->>'Type', data->>'Saison', data->>'Annee'
+        ORDER BY annee DESC, saison, type, code_produit
+    `;
+
+    // Ventes par Type (Booking/Repeat) + Saison + Année
+    const byTypeSaisonAnnee = await sql`
+        SELECT
+            data->>'Type'   AS type,
+            data->>'Saison' AS saison,
+            data->>'Annee'  AS annee,
+            SUM(CASE WHEN REPLACE(data->>'Montant',',','.') ~ '^-?[0-9]*\.?[0-9]+$' THEN REPLACE(data->>'Montant',',','.')::numeric ELSE 0 END)::numeric(12,2) AS montant,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total',',','.'),''),'0')::numeric)::int              AS unites,
+            COUNT(DISTINCT data->>'No_Commande')::int                                                     AS nb_commandes
+        FROM latest_transactions
+        GROUP BY data->>'Type', data->>'Saison', data->>'Annee'
+        ORDER BY annee DESC, saison, type
+    `;
+
+    // Ventes globales par mois
+    const byMois = await sql`
+        SELECT
+            SUBSTRING(data->>'Date_Facture', 1, 7)                                                       AS mois,
+            SUM(CASE WHEN REPLACE(data->>'Montant',',','.') ~ '^-?[0-9]*\.?[0-9]+$' THEN REPLACE(data->>'Montant',',','.')::numeric ELSE 0 END)::numeric(12,2) AS montant,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total',',','.'),''),'0')::numeric)::int              AS unites,
+            COUNT(DISTINCT data->>'No_Commande')::int                                                     AS nb_commandes
+        FROM latest_transactions
+        WHERE data->>'Date_Facture' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        GROUP BY SUBSTRING(data->>'Date_Facture', 1, 7)
+        ORDER BY mois
+    `;
+
+    // Ventes par modèle par mois
+    const byModeleMois = await sql`
+        SELECT
+            data->>'Modele'                                                                               AS modele,
+            SUBSTRING(data->>'Date_Facture', 1, 7)                                                       AS mois,
+            SUM(CASE WHEN REPLACE(data->>'Montant',',','.') ~ '^-?[0-9]*\.?[0-9]+$' THEN REPLACE(data->>'Montant',',','.')::numeric ELSE 0 END)::numeric(12,2) AS montant,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total',',','.'),''),'0')::numeric)::int              AS unites
+        FROM latest_transactions
+        WHERE data->>'Date_Facture' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        GROUP BY data->>'Modele', SUBSTRING(data->>'Date_Facture', 1, 7)
+        ORDER BY modele, mois
+    `;
+
+    // Ventes par vendeur par mois
+    const byVendeurMois = await sql`
+        SELECT
+            INITCAP(LOWER(data->>'Vendeur'))                                                             AS vendeur,
+            SUBSTRING(data->>'Date_Facture', 1, 7)                                                      AS mois,
+            SUM(CASE WHEN REPLACE(data->>'Montant',',','.') ~ '^-?[0-9]*\.?[0-9]+$' THEN REPLACE(data->>'Montant',',','.')::numeric ELSE 0 END)::numeric(12,2) AS montant,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total',',','.'),''),'0')::numeric)::int             AS unites,
+            COUNT(DISTINCT data->>'No_Commande')::int                                                    AS nb_commandes
+        FROM latest_transactions
+        WHERE data->>'Date_Facture' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        GROUP BY LOWER(data->>'Vendeur'), SUBSTRING(data->>'Date_Facture', 1, 7)
+        ORDER BY mois DESC, montant DESC
     `;
 
     // Pointures ventilées par système US / EUR / O
@@ -286,6 +431,49 @@ ${byDevise.map(r => `${r.devise}: ${Number(r.montant).toFixed(2)} $ (${r.unites}
 
 Ventes par vendeur / représentant :
 ${byVendeur.map(r => `${r.vendeur || '(non assigné)'}: ${r.unites} unités / ${Number(r.montant).toFixed(2)} $ — ${r.nb_commandes} commandes — ${r.nb_clients} clients`).join('\n')}
+
+Ventes par modèle PAR TYPE/SAISON/ANNÉE (chiffres exacts — utilise pour "Booking Fall 2026 par produit" ou toute combinaison modèle+type+saison+année) :
+${byModeleTypeSaisonAnnee.map(r => `${r.modele} | ${r.type} | ${r.saison} | ${r.annee} : ${r.unites} unités / ${Number(r.montant).toFixed(2)} $`).join('\n')}
+
+Ventes par code produit PAR SYSTÈME DE GRANDEUR/TYPE/SAISON/ANNÉE (chiffres exacts — utilise pour "Booking Fall 2026 par code produit et grandeur") :
+${byCodeProduitSystemeTypeSaisonAnnee.map(row => {
+    const US_L  = ['3','4','5','6','7','8','9','10','11','12','13','14','15','16','6.5','7.5','8.5','9.5','10.5','11.5'];
+    const EUR_L = ['33','34','35','36','37','38','39','40','41','42','43','44','45','46','36.5','37.5','38.5','39.5','40.5','41.5'];
+    const O_L   = ['—','XS','S','M','L','XL','2XL','—','—','—','—','—','—','—','—','—','—','—','—','—'];
+    let prefix, labels;
+    if (row.systeme === 'USA')      { prefix = 'USA'; labels = US_L; }
+    else if (row.systeme === 'EUR') { prefix = 'EUR'; labels = EUR_L; }
+    else if (row.systeme === 'O')   { prefix = '';    labels = O_L; }
+    else { prefix = row.systeme; labels = US_L; }
+    const sizes = labels.map((lbl, i) => lbl === '—' ? null : (row[`q${i}`] ?? 0) > 0 ? `${prefix}${prefix ? ' ' : ''}${lbl}:${row[`q${i}`]}` : null).filter(Boolean).join(' ');
+    return `${row.code_produit} (${row.modele}) | ${row.systeme} | ${row.type} | ${row.saison} | ${row.annee} : ${sizes || '(aucune unité)'}`;
+}).join('\n')}
+
+Ventes par modèle PAR SYSTÈME DE GRANDEUR/TYPE/SAISON/ANNÉE (chiffres exacts par pointure — utilise pour "grandeurs du Ice STONE en Booking Fall 2026") :
+${byModeleSystemeTypeSaisonAnnee.map(row => {
+    const US_L  = ['3','4','5','6','7','8','9','10','11','12','13','14','15','16','6.5','7.5','8.5','9.5','10.5','11.5'];
+    const EUR_L = ['33','34','35','36','37','38','39','40','41','42','43','44','45','46','36.5','37.5','38.5','39.5','40.5','41.5'];
+    const O_L   = ['—','XS','S','M','L','XL','2XL','—','—','—','—','—','—','—','—','—','—','—','—','—'];
+    let prefix, labels;
+    if (row.systeme === 'USA')      { prefix = 'USA'; labels = US_L; }
+    else if (row.systeme === 'EUR') { prefix = 'EUR'; labels = EUR_L; }
+    else if (row.systeme === 'O')   { prefix = '';    labels = O_L; }
+    else { prefix = row.systeme; labels = US_L; }
+    const sizes = labels.map((lbl, i) => lbl === '—' ? null : (row[`q${i}`] ?? 0) > 0 ? `${prefix}${prefix ? ' ' : ''}${lbl}:${row[`q${i}`]}` : null).filter(Boolean).join(' ');
+    return `${row.modele} | ${row.systeme} | ${row.type} | ${row.saison} | ${row.annee} : ${sizes || '(aucune unité)'}`;
+}).join('\n')}
+
+Ventes par TYPE / SAISON / ANNÉE (chiffres exacts — utilise pour toute question Booking vs Repeat, Fall vs Spring, par année) :
+${byTypeSaisonAnnee.map(r => `${r.type} | ${r.saison} | ${r.annee} : ${r.unites} unités / ${Number(r.montant).toFixed(2)} $ — ${r.nb_commandes} commandes`).join('\n')}
+
+Ventes globales PAR MOIS (chiffres exacts) :
+${byMois.map(r => `${r.mois} : ${r.unites} unités / ${Number(r.montant).toFixed(2)} $ — ${r.nb_commandes} commandes`).join('\n')}
+
+Ventes par modèle PAR MOIS (chiffres exacts — utilise pour toute question produit + période) :
+${byModeleMois.map(r => `${r.modele} | ${r.mois} : ${r.unites} unités / ${Number(r.montant).toFixed(2)} $`).join('\n')}
+
+Ventes par vendeur PAR MOIS (chiffres exacts — utilise cette section pour toute question sur un vendeur + période) :
+${byVendeurMois.map(r => `${r.vendeur || '(non assigné)'} | ${r.mois} : ${r.unites} unités / ${Number(r.montant).toFixed(2)} $ — ${r.nb_commandes} commandes`).join('\n')}
 `.trim();
 }
 
