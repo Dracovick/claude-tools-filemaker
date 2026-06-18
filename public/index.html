@@ -6,6 +6,7 @@
 <title>Assistant IA – FileMaker</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -30,6 +31,7 @@
     flex-shrink: 0;
   }
   #header .dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; }
+  #header .header-logo { height: 22px; width: auto; }
   #header .info { margin-left: auto; font-size: 11px; opacity: 0.7; font-weight: 400; }
 
   /* ── Zone de chat ── */
@@ -168,6 +170,73 @@
     font-family: monospace;
   }
 
+  /* ── Écran de connexion ── */
+  #login-screen {
+    position: fixed;
+    inset: 0;
+    background: #1a3a5c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    flex-direction: column;
+    gap: 20px;
+  }
+  #login-screen img { height: 48px; width: auto; }
+  #login-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 32px 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 300px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  }
+  #login-box h2 { font-size: 15px; color: #1a3a5c; text-align: center; margin-bottom: 4px; }
+  #login-box input {
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    width: 100%;
+  }
+  #login-box input:focus { border-color: #1a3a5c; }
+  #login-btn {
+    background: #1a3a5c;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  #login-btn:hover { background: #254e7a; }
+  #login-error { color: #991b1b; font-size: 12px; text-align: center; display: none; }
+
+  /* ── Bouton Excel ── */
+  .excel-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 2px 0 8px;
+    padding: 4px 11px;
+    background: #1d7044;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .excel-btn:hover { background: #155c36; }
+
   /* ── Zone de saisie ── */
   #input-area {
     background: #fff;
@@ -214,8 +283,19 @@
 </head>
 <body>
 
+<div id="login-screen">
+  <img src="https://www.nexgrip.com/wp-content/uploads/2023/06/logo-nexgrip-inverse.png" alt="NEXGRIP">
+  <div id="login-box">
+    <h2>Assistant IA – Données de vente</h2>
+    <input type="password" id="login-input" placeholder="Mot de passe" autocomplete="current-password">
+    <button id="login-btn">Connexion</button>
+    <div id="login-error">Mot de passe incorrect.</div>
+  </div>
+</div>
+
 <div id="header">
   <div class="dot"></div>
+  <img src="https://www.nexgrip.com/wp-content/uploads/2023/06/logo-nexgrip-inverse.png" alt="NEXGRIP" class="header-logo">
   Assistant IA – Données de vente
   <span class="info" id="row-info"></span>
 </div>
@@ -234,6 +314,42 @@
 </div>
 
 <script>
+  // ── Authentification ──
+  const HASH = '445757c9a5a926edf4a5baff48b24d22ca8806674d32a7b642fc3a89b4ce1562';
+  const STORAGE_KEY = 'nx_auth';
+
+  async function sha256(str) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+
+  async function checkAuth() {
+    if (localStorage.getItem(STORAGE_KEY) === HASH) {
+      document.getElementById('login-screen').style.display = 'none';
+      return;
+    }
+    const btn   = document.getElementById('login-btn');
+    const input = document.getElementById('login-input');
+    const err   = document.getElementById('login-error');
+
+    async function tryLogin() {
+      const h = await sha256(input.value);
+      if (h === HASH) {
+        localStorage.setItem(STORAGE_KEY, HASH);
+        document.getElementById('login-screen').style.display = 'none';
+      } else {
+        err.style.display = 'block';
+        input.value = '';
+        input.focus();
+      }
+    }
+    btn.addEventListener('click', tryLogin);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+    input.focus();
+  }
+
+  checkAuth();
+
   marked.setOptions({ breaks: true, gfm: true });
 
   const chat        = document.getElementById('chat');
@@ -365,6 +481,41 @@
     });
   }
 
+  // ── Export Excel ──
+  function getNearestHeading(table) {
+    let el = table.previousElementSibling;
+    while (el) {
+      if (/^H[1-3]$/.test(el.tagName)) return el.textContent.trim();
+      el = el.previousElementSibling;
+    }
+    return null;
+  }
+
+  function downloadTableAsExcel(table, fallbackName) {
+    const wsData = [];
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+    if (headers.length) wsData.push(headers);
+    table.querySelectorAll('tbody tr').forEach(tr => {
+      wsData.push(Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim()));
+    });
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Données');
+    const name = (getNearestHeading(table) || fallbackName)
+      .replace(/[\\/*?[\]:]/g, '-').substring(0, 60);
+    XLSX.writeFile(wb, name + '.xlsx');
+  }
+
+  function addExcelButtons(container) {
+    container.querySelectorAll('table').forEach((table, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'excel-btn';
+      btn.innerHTML = '⬇ Télécharger en Excel';
+      btn.addEventListener('click', () => downloadTableAsExcel(table, `tableau_${idx + 1}`));
+      table.insertAdjacentElement('afterend', btn);
+    });
+  }
+
   // Découpe la réponse en segments texte/chart et les affiche
   function renderAssistant(text, bubble) {
     const CHART_RE = /```chart\r?\n([\s\S]*?)\r?\n```/g;
@@ -377,6 +528,7 @@
         div.className = 'md-content';
         div.innerHTML = marked.parse(before);
         bubble.appendChild(div);
+        addExcelButtons(div);
       }
       renderChart(match[1].trim(), bubble);
       last = match.index + match[0].length;
@@ -388,6 +540,7 @@
       div.className = 'md-content';
       div.innerHTML = marked.parse(after);
       bubble.appendChild(div);
+      addExcelButtons(div);
     }
   }
 

@@ -66,12 +66,27 @@ RÈGLES DE CALCUL IMPÉRATIVES :
 - INTERDIT : N'utilise JAMAIS le symbole ~ (tilde) ni les mots "environ", "approximativement", "à peu près" pour des chiffres de quantité ou de montant. Les statistiques pré-calculées sont exactes — utilise-les telles quelles.
 - Si une question demande un calcul qui n'est pas dans les statistiques pré-calculées, dis-le explicitement et refuse de donner un chiffre approximatif.
 
+CHAMP VENDEUR / REPRÉSENTANT :
+- Le champ "Vendeur" contient le nom du représentant des ventes associé à chaque commande.
+- L'utilisateur peut appeler ce champ "vendeur", "représentant", "rep" ou "vendeur de la commande".
+- Les statistiques par vendeur sont pré-calculées dans la section "Ventes par vendeur / représentant" ci-dessous — utilise-les sans recalcul.
+- Les noms de vendeurs sont normalisés (insensible à la casse) : "Alain Knapp", "ALAIN KNAPP" et "alain knapp" sont la même personne. Ne jamais les compter séparément.
+
 RÈGLES DE PRÉSENTATION DES GRANDEURS :
 - Ne jamais mélanger les systèmes USA, EUR et tailles (O) dans un même chiffre ou tableau.
 - Toujours préciser le système : écrire "USA 8" ou "EUR 38", jamais juste "8" ou "38" sans préfixe.
 - Quand l'utilisateur demande "grandeur 8" sans préciser : chercher dans les produits USA (USA 8) ET dans les produits EUR (EUR 38 ne vaut pas 8 USA). Présenter les résultats séparément avec leur système explicite.
 - Un produit USA avec Qte5=3 représente 3 unités en USA 8. Un produit EUR avec Qte5=3 représente 3 unités en EUR 38. Ce sont des grandeurs DIFFÉRENTES sur des systèmes DIFFÉRENTS — ne jamais les additionner sans le signaler clairement.
-- Pour les produits O, toujours écrire la taille complète : "taille S", "taille M", etc. — jamais juste "M" seul qui pourrait être confondu avec le code Men's.`;
+- Pour les produits O, toujours écrire la taille complète : "taille S", "taille M", etc. — jamais juste "M" seul qui pourrait être confondu avec le code Men's.
+
+RÈGLE OBLIGATOIRE — TABLEAU PAR GRANDEUR :
+Quand l'utilisateur demande un tableau des ventes par grandeur (ou "par taille", "par pointure", etc.) sans préciser le système :
+1. Toujours produire 3 tableaux distincts, dans cet ordre : Système USA, Système EUR, Système O (tailles vestimentaires XS/S/M/L/XL/2XL).
+2. Si un système n'a aucune unité dans les données courantes, afficher un message d'avis à la place du tableau : "⚠ Aucune vente en grandeur [SYSTÈME] dans les données actuelles."
+3. Ne jamais omettre une grandeur qui a des unités — si USA 7 a des ventes, il DOIT apparaître dans le tableau USA. Toute grandeur avec au moins 1 unité doit être listée.
+4. Ne jamais fusionner USA, EUR et O dans un même tableau, même partiellement.
+5. Titrer chaque tableau clairement : "### Ventes par grandeur — Système USA", "### Ventes par grandeur — Système EUR", "### Ventes par taille — Système O (XS/S/M/L/XL/2XL)".
+6. Utiliser les données pré-calculées de la section "Unités par grandeur PAR SYSTÈME" ci-dessous — ne pas recalculer depuis les données brutes.`;
 
 async function buildStats(sql) {
     const [totals] = await sql`
@@ -138,6 +153,18 @@ async function buildStats(sql) {
             SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total', ',','.'),''),'0')::numeric)::int           AS unites
         FROM latest_transactions
         GROUP BY data->>'Devise'
+        ORDER BY montant DESC
+    `;
+
+    const byVendeur = await sql`
+        SELECT
+            INITCAP(LOWER(data->>'Vendeur'))                                                            AS vendeur,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Montant',   ',','.'),''),'0')::numeric)::numeric(12,2) AS montant,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total', ',','.'),''),'0')::numeric)::int           AS unites,
+            COUNT(DISTINCT data->>'No_Commande')::int                                                   AS nb_commandes,
+            COUNT(DISTINCT data->>'Client')::int                                                        AS nb_clients
+        FROM latest_transactions
+        GROUP BY LOWER(data->>'Vendeur')
         ORDER BY montant DESC
     `;
 
@@ -256,6 +283,9 @@ ${byModele.map(r => `${r.modele}: ${r.unites} unités / ${Number(r.montant).toFi
 
 Ventes par devise :
 ${byDevise.map(r => `${r.devise}: ${Number(r.montant).toFixed(2)} $ (${r.unites} unités)`).join('\n')}
+
+Ventes par vendeur / représentant :
+${byVendeur.map(r => `${r.vendeur || '(non assigné)'}: ${r.unites} unités / ${Number(r.montant).toFixed(2)} $ — ${r.nb_commandes} commandes — ${r.nb_clients} clients`).join('\n')}
 `.trim();
 }
 
