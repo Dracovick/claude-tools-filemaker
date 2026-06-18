@@ -22,7 +22,7 @@ COLS = [
     "Qte10","Qte11","Qte12","Qte13","Qte14","Qte15","Qte16","Qte17","Qte18","Qte19",
     "Qte_Total","Marque","Modele","Code_Produit","Annee","Saison","Type",
     "Date_Commande","Devise","Prix_Unitaire","Prix_Detail","Client",
-    "Date_Facture","Montant","No_Commande","Code_Client","Nom_Client",
+    "Date_Facture","Montant","No_Commande","Code_Client","Nom_Client","Type_Grandeur",
 ]
 
 def read_csv(path):

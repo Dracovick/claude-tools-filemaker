@@ -41,7 +41,13 @@ Chaque champ QteX représente la quantité commandée pour une pointure spécifi
 | Qte17 | 9.5  | 39.5 |
 | Qte18 | 10.5 | 40.5 |
 | Qte19 | 11.5 | 41.5 |
-Lorsqu'on parle de pointures, utilise toujours le système USA sauf si le contexte indique des produits européens.
+SYSTÈME DE GRANDEUR — champ Type_Grandeur :
+| Type_Grandeur     | Système  | Correspondance des champs Qte                                              |
+|-------------------|----------|----------------------------------------------------------------------------|
+| W, M, Y, W1, M1, Y1 | USA   | Qte0=3, Qte1=4, Qte2=5, Qte3=6, Qte4=7, Qte5=8, Qte6=9, Qte7=10, Qte8=11, Qte9=12, Qte10=13, Qte11=14, Qte12=15, Qte13=16, Qte14=6.5, Qte15=7.5, Qte16=8.5, Qte17=9.5, Qte18=10.5, Qte19=11.5 |
+| A, B, A/B         | EUR      | Qte0=33, Qte1=34, Qte2=35, Qte3=36, Qte4=37, Qte5=38, Qte6=39, Qte7=40, Qte8=41, Qte9=42, Qte10=43, Qte11=44, Qte12=45, Qte13=46, Qte14=36.5, Qte15=37.5, Qte16=38.5, Qte17=39.5, Qte18=40.5, Qte19=41.5 |
+| O                 | Tailles  | Qte0=non utilisé, Qte1=XS, Qte2=S, Qte3=M, Qte4=L, Qte5=XL, Qte6=2XL    |
+Toujours afficher les grandeurs dans le système correspondant au Type_Grandeur du produit.
 Un champ Qte vide ou absent signifie zéro unité pour cette pointure.
 
 RÈGLES DE CALCUL IMPÉRATIVES :
@@ -119,6 +125,40 @@ async function buildStats(sql) {
         ORDER BY montant DESC
     `;
 
+    // Pointures ventilées par système US / EUR / O
+    const bySystemeQte = await sql`
+        SELECT
+            CASE
+                WHEN data->>'Type_Grandeur' IN ('W','M','Y','W1','M1','Y1') THEN 'US'
+                WHEN data->>'Type_Grandeur' IN ('A','B','A/B')              THEN 'EUR'
+                WHEN data->>'Type_Grandeur' = 'O'                           THEN 'O'
+                ELSE COALESCE(data->>'Type_Grandeur','?')
+            END AS systeme,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte0', ',','.'),''),'0')::numeric)::int AS q0,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte1', ',','.'),''),'0')::numeric)::int AS q1,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte2', ',','.'),''),'0')::numeric)::int AS q2,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte3', ',','.'),''),'0')::numeric)::int AS q3,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte4', ',','.'),''),'0')::numeric)::int AS q4,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte5', ',','.'),''),'0')::numeric)::int AS q5,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte6', ',','.'),''),'0')::numeric)::int AS q6,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte7', ',','.'),''),'0')::numeric)::int AS q7,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte8', ',','.'),''),'0')::numeric)::int AS q8,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte9', ',','.'),''),'0')::numeric)::int AS q9,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte10',',','.'),''),'0')::numeric)::int AS q10,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte11',',','.'),''),'0')::numeric)::int AS q11,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte12',',','.'),''),'0')::numeric)::int AS q12,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte13',',','.'),''),'0')::numeric)::int AS q13,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte14',',','.'),''),'0')::numeric)::int AS q14,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte15',',','.'),''),'0')::numeric)::int AS q15,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte16',',','.'),''),'0')::numeric)::int AS q16,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte17',',','.'),''),'0')::numeric)::int AS q17,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte18',',','.'),''),'0')::numeric)::int AS q18,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte19',',','.'),''),'0')::numeric)::int AS q19
+        FROM latest_transactions
+        GROUP BY systeme
+        ORDER BY systeme
+    `;
+
     // Pointures ventilées par devise — évite que Claude calcule lui-même
     const byDeviseQte = await sql`
         SELECT
@@ -167,6 +207,24 @@ async function buildStats(sql) {
         return `Devise ${row.devise} :\n${lines || '  (aucune unité)'}`;
     }).join('\n\n');
 
+    const US_LABEL  = ['3','4','5','6','7','8','9','10','11','12','13','14','15','16','6.5','7.5','8.5','9.5','10.5','11.5'];
+    const EUR_LABEL = ['33','34','35','36','37','38','39','40','41','42','43','44','45','46','36.5','37.5','38.5','39.5','40.5','41.5'];
+
+    const O_LABEL   = ['—','XS','S','M','L','XL','2XL','—','—','—','—','—','—','—','—','—','—','—','—','—'];
+    const systemeQteSummary = bySystemeQte.map(row => {
+        let prefix, labels;
+        if (row.systeme === 'US')  { prefix = 'USA'; labels = US_LABEL; }
+        else if (row.systeme === 'EUR') { prefix = 'EUR'; labels = EUR_LABEL; }
+        else if (row.systeme === 'O')   { prefix = '';    labels = O_LABEL; }
+        else { prefix = row.systeme; labels = US_LABEL; }
+        const lines = labels
+            .map((lbl, i) => lbl === '—' ? null : `  ${prefix ? prefix + ' ' : ''}${lbl}: ${row[`q${i}`] ?? 0}`)
+            .filter((line, i) => line !== null && (row[`q${i}`] ?? 0) > 0)
+            .join('\n');
+        const typeInfo = row.systeme === 'US' ? 'W/M/Y/W1/M1/Y1' : row.systeme === 'EUR' ? 'A/B' : row.systeme;
+        return `Produits ${row.systeme} (Type_Grandeur=${typeInfo}) :\n${lines || '  (aucune unité)'}`;
+    }).join('\n\n');
+
     return `
 STATISTIQUES VÉRIFIÉES (calculées par PostgreSQL — source de vérité absolue) :
 Ces chiffres sont EXACTS. Utilise-les sans approximation ni recalcul.
@@ -180,6 +238,9 @@ Résumé général :
 
 Unités par pointure (toutes devises) :
 ${qteSummary}
+
+Unités par pointure PAR SYSTÈME (US vs EUR, chiffres exacts — ne pas recalculer) :
+${systemeQteSummary}
 
 Unités par pointure PAR DEVISE (chiffres exacts — ne pas recalculer) :
 ${deviseQteSummary}
