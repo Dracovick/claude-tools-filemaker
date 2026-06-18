@@ -64,7 +64,8 @@ RÈGLES DE CALCUL IMPÉRATIVES :
 - Tu DOIS utiliser ces chiffres pré-calculés pour répondre aux questions de totaux. Ne recalcule JAMAIS toi-même ces valeurs à partir des données brutes.
 - Les montants utilisent la virgule comme séparateur décimal (ex: 82,5 = 82.5). Ne confonds pas virgule décimale et séparateur de milliers.
 - INTERDIT : N'utilise JAMAIS le symbole ~ (tilde) ni les mots "environ", "approximativement", "à peu près" pour des chiffres de quantité ou de montant. Les statistiques pré-calculées sont exactes — utilise-les telles quelles.
-- Si une question demande un calcul qui n'est pas dans les statistiques pré-calculées, dis-le explicitement et refuse de donner un chiffre approximatif.
+- Si une question demande un TOTAL ou un MONTANT qui n'est pas dans les statistiques pré-calculées, dis-le explicitement et refuse de donner un chiffre approximatif.
+- En revanche, pour LISTER des clients, commandes ou lignes correspondant à des critères précis (ex: "quels clients ont acheté X en mai"), consulte les données brutes ligne par ligne et liste tous les résultats trouvés — c'est une recherche, pas un calcul agrégé.
 
 CHAMP VENDEUR / REPRÉSENTANT :
 - Le champ "Vendeur" contient le nom du représentant des ventes associé à chaque commande.
@@ -322,6 +323,20 @@ async function buildStats(sql) {
         ORDER BY mois DESC, montant DESC
     `;
 
+    // Ventes par client + modèle + mois (pour "qui a acheté X en mois Y")
+    const byClientModeleMois = await sql`
+        SELECT
+            data->>'Client'                                                                               AS client,
+            data->>'Modele'                                                                               AS modele,
+            SUBSTRING(data->>'Date_Facture', 1, 7)                                                        AS mois,
+            SUM(COALESCE(NULLIF(REPLACE(data->>'Qte_Total',',','.'),''),'0')::numeric)::int               AS unites,
+            COUNT(DISTINCT data->>'No_Commande')::int                                                     AS nb_commandes
+        FROM latest_transactions
+        WHERE data->>'Date_Facture' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        GROUP BY data->>'Client', data->>'Modele', SUBSTRING(data->>'Date_Facture', 1, 7)
+        ORDER BY mois DESC, modele, unites DESC
+    `;
+
     // Pointures ventilées par système US / EUR / O
     const bySystemeQte = await sql`
         SELECT
@@ -483,6 +498,9 @@ ${byModeleMois.map(r => `${r.modele} | ${r.mois} : ${r.unites} unités / ${Numbe
 
 Ventes par vendeur PAR MOIS (chiffres exacts — utilise cette section pour toute question sur un vendeur + période) :
 ${byVendeurMois.map(r => `${r.vendeur || '(non assigné)'} | ${r.mois} : ${r.unites} unités / ${Number(r.montant).toFixed(2)} $ — ${r.nb_commandes} commandes`).join('\n')}
+
+Ventes par CLIENT + MODÈLE + MOIS (chiffres exacts — utilise pour "quels clients ont acheté le modèle X en mois Y") :
+${byClientModeleMois.map(r => `${r.client} | ${r.modele} | ${r.mois} : ${r.unites} unités — ${r.nb_commandes} commandes`).join('\n')}
 `.trim();
 }
 
