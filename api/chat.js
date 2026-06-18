@@ -65,6 +65,7 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Méthode non autorisée' });
 
     const question = (req.body?.question || '').trim();
+    const history  = Array.isArray(req.body?.history) ? req.body.history : [];
     if (!question) return res.status(400).json({ error: 'Question vide' });
 
     // Lecture des données depuis Neon
@@ -76,8 +77,9 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: "Aucune donnée disponible. L'import nightly n'a pas encore été exécuté." });
     }
 
-    const tabData = buildTabData(rows);
-    const system  = SYSTEM_PROMPT_BASE + '\n\nDonnées disponibles:\n---\n' + tabData + '\n---';
+    const tabData  = buildTabData(rows);
+    const system   = SYSTEM_PROMPT_BASE + '\n\nDonnées disponibles:\n---\n' + tabData + '\n---';
+    const messages = [...history, { role: 'user', content: question }];
 
     // Appel Claude
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -91,7 +93,7 @@ export default async function handler(req, res) {
             model:      process.env.MODEL || 'claude-sonnet-4-6',
             max_tokens: 2048,
             system,
-            messages: [{ role: 'user', content: question }],
+            messages,
         }),
     });
 
