@@ -64,7 +64,14 @@ RÈGLES DE CALCUL IMPÉRATIVES :
 - Tu DOIS utiliser ces chiffres pré-calculés pour répondre aux questions de totaux. Ne recalcule JAMAIS toi-même ces valeurs à partir des données brutes.
 - Les montants utilisent la virgule comme séparateur décimal (ex: 82,5 = 82.5). Ne confonds pas virgule décimale et séparateur de milliers.
 - INTERDIT : N'utilise JAMAIS le symbole ~ (tilde) ni les mots "environ", "approximativement", "à peu près" pour des chiffres de quantité ou de montant. Les statistiques pré-calculées sont exactes — utilise-les telles quelles.
-- Si une question demande un calcul qui n'est pas dans les statistiques pré-calculées, dis-le explicitement et refuse de donner un chiffre approximatif.`;
+- Si une question demande un calcul qui n'est pas dans les statistiques pré-calculées, dis-le explicitement et refuse de donner un chiffre approximatif.
+
+RÈGLES DE PRÉSENTATION DES GRANDEURS :
+- Ne jamais mélanger les systèmes USA, EUR et tailles (O) dans un même chiffre ou tableau.
+- Toujours préciser le système : écrire "USA 8" ou "EUR 38", jamais juste "8" ou "38" sans préfixe.
+- Quand l'utilisateur demande "grandeur 8" sans préciser : chercher dans les produits USA (USA 8) ET dans les produits EUR (EUR 38 ne vaut pas 8 USA). Présenter les résultats séparément avec leur système explicite.
+- Un produit USA avec Qte5=3 représente 3 unités en USA 8. Un produit EUR avec Qte5=3 représente 3 unités en EUR 38. Ce sont des grandeurs DIFFÉRENTES sur des systèmes DIFFÉRENTS — ne jamais les additionner sans le signaler clairement.
+- Pour les produits O, toujours écrire la taille complète : "taille S", "taille M", etc. — jamais juste "M" seul qui pourrait être confondu avec le code Men's.`;
 
 async function buildStats(sql) {
     const [totals] = await sql`
@@ -197,16 +204,8 @@ async function buildStats(sql) {
         ORDER BY devise
     `;
 
-    const SIZE_LABEL = [
-        'USA 3/EUR 33','USA 4/EUR 34','USA 5/EUR 35','USA 6/EUR 36',
-        'USA 7/EUR 37','USA 8/EUR 38','USA 9/EUR 39','USA 10/EUR 40',
-        'USA 11/EUR 41','USA 12/EUR 42','USA 13/EUR 43','USA 14/EUR 44',
-        'USA 15/EUR 45','USA 16/EUR 46','USA 6.5/EUR 36.5','USA 7.5/EUR 37.5',
-        'USA 8.5/EUR 38.5','USA 9.5/EUR 39.5','USA 10.5/EUR 40.5','USA 11.5/EUR 41.5',
-    ];
-    const qteSummary = SIZE_LABEL
-        .map((lbl, i) => `${lbl}: ${q[`q${i}`] ?? 0} unités`)
-        .join('\n');
+    const US_LABEL_GLOBAL  = ['3','4','5','6','7','8','9','10','11','12','13','14','15','16','6.5','7.5','8.5','9.5','10.5','11.5'];
+    const EUR_LABEL_GLOBAL = ['33','34','35','36','37','38','39','40','41','42','43','44','45','46','36.5','37.5','38.5','39.5','40.5','41.5'];
 
     const deviseQteSummary = byDeviseQte.map(row => {
         const lines = SIZE_LABEL
@@ -216,18 +215,16 @@ async function buildStats(sql) {
         return `Devise ${row.devise} :\n${lines || '  (aucune unité)'}`;
     }).join('\n\n');
 
-    const US_LABEL  = ['3','4','5','6','7','8','9','10','11','12','13','14','15','16','6.5','7.5','8.5','9.5','10.5','11.5'];
-    const EUR_LABEL = ['33','34','35','36','37','38','39','40','41','42','43','44','45','46','36.5','37.5','38.5','39.5','40.5','41.5'];
 
     const O_LABEL   = ['—','XS','S','M','L','XL','2XL','—','—','—','—','—','—','—','—','—','—','—','—','—'];
     const systemeQteSummary = bySystemeQte.map(row => {
         let prefix, labels;
-        if (row.systeme === 'US')  { prefix = 'USA'; labels = US_LABEL; }
-        else if (row.systeme === 'EUR') { prefix = 'EUR'; labels = EUR_LABEL; }
-        else if (row.systeme === 'O')   { prefix = '';    labels = O_LABEL; }
-        else { prefix = row.systeme; labels = US_LABEL; }
+        if (row.systeme === 'US')       { prefix = 'USA'; labels = US_LABEL_GLOBAL; }
+        else if (row.systeme === 'EUR') { prefix = 'EUR'; labels = EUR_LABEL_GLOBAL; }
+        else if (row.systeme === 'O')   { prefix = 'taille'; labels = O_LABEL; }
+        else { prefix = row.systeme; labels = US_LABEL_GLOBAL; }
         const lines = labels
-            .map((lbl, i) => lbl === '—' ? null : `  ${prefix ? prefix + ' ' : ''}${lbl}: ${row[`q${i}`] ?? 0}`)
+            .map((lbl, i) => lbl === '—' ? null : `  ${prefix} ${lbl}: ${row[`q${i}`] ?? 0}`)
             .filter((line, i) => line !== null && (row[`q${i}`] ?? 0) > 0)
             .join('\n');
         const typeInfo = row.systeme === 'US' ? 'W/M/Y/W1/M1/Y1' : row.systeme === 'EUR' ? 'A/B' : row.systeme;
@@ -245,10 +242,7 @@ Résumé général :
 - Unités totales : ${totals.unites_total}
 - Montant total : ${Number(totals.montant_total).toFixed(2)} $
 
-Unités par pointure (toutes devises) :
-${qteSummary}
-
-Unités par pointure PAR SYSTÈME (US vs EUR, chiffres exacts — ne pas recalculer) :
+Unités par grandeur PAR SYSTÈME (chiffres exacts — USA et EUR sont des systèmes distincts, ne jamais les additionner) :
 ${systemeQteSummary}
 
 Unités par pointure PAR DEVISE (chiffres exacts — ne pas recalculer) :
